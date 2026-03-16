@@ -22,7 +22,8 @@ return [
     'refresh_ttl' => env('JWT_REFRESH_TTL', 20160),
 
     // 签名算法
-    'algo' => env('JWT_ALGO', Tymon\JWTAuth\Providers\JWT\Provider::ALGO_HS256),
+    //'algo' => env('JWT_ALGO', Tymon\JWTAuth\Providers\JWT\Provider::ALGO_HS256),
+    'algo' => env('JWT_ALGO', 'HS256'),
 
     // 需要验证的声明
     'required_claims' => ['iss', 'iat', 'exp', 'nbf', 'sub', 'jti'],
@@ -38,8 +39,6 @@ return [
     'blacklist_grace_period' => env('JWT_BLACKLIST_GRACE_PERIOD', 0),
 
     'decrypt_cookies' => false,
-
-    'algorithm' => 'HS256',
 
     'providers' => [
         'jwt'          => Tymon\JWTAuth\Providers\JWT\Lcobucci::class,
