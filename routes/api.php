@@ -18,7 +18,7 @@ use App\Http\Controllers\Api\OcrController;
 Route::post('/auth/login', [AuthController::class, 'login']);
 
 // 需要 JWT 认证的路由
-Route::middleware('auth:api')->group(function () {
+Route::middleware('api')->group(function () {//auth:
 
     // 碎片 CRUD
     Route::get('/cards',           [CardController::class, 'index']);   // 列表/按日期筛选
