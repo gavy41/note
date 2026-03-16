@@ -20,15 +20,23 @@ class OcrController extends Controller
      * POST /api/ocr/upload
      * multipart/form-data: image=<file>
      * 响应: { data: { text: "识别结果" } }
+     *
+     * 注意：服务端会在调用微信 OCR 前自动压缩图片到 ≤4MB / ≤4096px
+     * 接口本身接受最大 20MB 的上传（客户端原图）
      */
     public function upload(Request $request)
     {
         $request->validate([
-            'image' => 'required|image|max:10240',   // 最大 10MB
+            'image' => 'required|image|max:20480',   // 接受最大 20MB，服务端压缩后再发给微信
         ]);
 
         $file = $request->file('image');
-        $text = $this->wechat->ocrImage($file->getRealPath());
+
+        try {
+            $text = $this->wechat->ocrImage($file->getRealPath());
+        } catch (\RuntimeException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
 
         return response()->json(['data' => ['text' => $text]]);
     }
