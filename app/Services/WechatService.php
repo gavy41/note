@@ -96,7 +96,9 @@ class WechatService
         $maxPixels = 4096;
 
         // 文件已合规，直接返回
-        [$w, $h] = array_values(array_slice(getimagesize($sourcePath) ?: [0, 0], 0, 2));
+        $sizeInfo = getimagesize($sourcePath);
+        $w = $sizeInfo ? $sizeInfo[0] : 0;
+        $h = $sizeInfo ? $sizeInfo[1] : 0;
         if (filesize($sourcePath) <= $maxBytes && max($w, $h) <= $maxPixels) {
             return $sourcePath;
         }
@@ -109,12 +111,22 @@ class WechatService
         $info = getimagesize($sourcePath);
         $mime = $info['mime'] ?? 'image/jpeg';
 
-        $src = match ($mime) {
-            'image/png'  => imagecreatefrompng($sourcePath),
-            'image/gif'  => imagecreatefromgif($sourcePath),
-            'image/webp' => function_exists('imagecreatefromwebp') ? imagecreatefromwebp($sourcePath) : imagecreatefromjpeg($sourcePath),
-            default      => imagecreatefromjpeg($sourcePath),
-        };
+        switch ($mime) {
+            case 'image/png':
+                $src = imagecreatefrompng($sourcePath);
+                break;
+            case 'image/gif':
+                $src = imagecreatefromgif($sourcePath);
+                break;
+            case 'image/webp':
+                $src = function_exists('imagecreatefromwebp')
+                    ? imagecreatefromwebp($sourcePath)
+                    : imagecreatefromjpeg($sourcePath);
+                break;
+            default:
+                $src = imagecreatefromjpeg($sourcePath);
+                break;
+        }
 
         if (!$src) {
             return $sourcePath;
