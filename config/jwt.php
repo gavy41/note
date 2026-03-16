@@ -39,6 +39,8 @@ return [
 
     'decrypt_cookies' => false,
 
+    'algorithm' => 'HS256',
+
     'providers' => [
         'jwt'          => Tymon\JWTAuth\Providers\JWT\Lcobucci::class,
         'auth'         => Tymon\JWTAuth\Providers\Auth\Illuminate::class,
