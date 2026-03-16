@@ -45,8 +45,8 @@ class WechatService
     /**
      * 调用微信 OCR 通用文字识别接口
      *
-     * 微信 OCR API 文档:
-     * https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/img-ocr/ocr/printedTextOCR.html
+     * 微信限制：图片 ≤ 4MB，最长边 ≤ 4096px
+     * 本方法会在发送前自动压缩图片到合规尺寸。
      *
      * @param  string $imagePath  本地图片绝对路径
      * @return string             识别出的文字（多行用 \n 分隔）
@@ -55,10 +55,18 @@ class WechatService
     {
         $token = $this->getAccessToken();
 
-        // 使用 img_url 方式需要图片可公网访问；这里改用 multipart 直接上传文件
-        $res = Http::withToken($token, 'Bearer')
-            ->attach('img', file_get_contents($imagePath), 'image.jpg')
-            ->post("https://api.weixin.qq.com/cv/ocr/comm?access_token={$token}");
+        // 压缩图片，确保符合微信限制（≤4MB，最长边≤4096px）
+        $compressedPath = $this->compressImage($imagePath);
+
+        try {
+            $res = Http::attach('img', file_get_contents($compressedPath), 'image.jpg')
+                ->post("https://api.weixin.qq.com/cv/ocr/comm?access_token={$token}");
+        } finally {
+            // 清理压缩后的临时文件（如果与原文件不同）
+            if ($compressedPath !== $imagePath && file_exists($compressedPath)) {
+                @unlink($compressedPath);
+            }
+        }
 
         $data = $res->json();
 
@@ -73,6 +81,77 @@ class WechatService
 
         // 将所有文字块拼接，按行分隔
         return implode("\n", array_column($data['items'], 'text'));
+    }
+
+    /**
+     * 压缩图片至微信 OCR 接口要求（≤4MB，最长边≤4096px）
+     * 需要 PHP GD 或 Imagick 扩展（优先用 GD）
+     *
+     * @param  string $sourcePath  原始图片绝对路径
+     * @return string              压缩后图片路径（若无需压缩则返回原路径）
+     */
+    private function compressImage(string $sourcePath): string
+    {
+        $maxBytes  = (int)(3.8 * 1024 * 1024);  // 3.8MB，留余量
+        $maxPixels = 4096;
+
+        // 文件已合规，直接返回
+        [$w, $h] = array_values(array_slice(getimagesize($sourcePath) ?: [0, 0], 0, 2));
+        if (filesize($sourcePath) <= $maxBytes && max($w, $h) <= $maxPixels) {
+            return $sourcePath;
+        }
+
+        if (!extension_loaded('gd')) {
+            Log::warning('GD 扩展未安装，跳过图片压缩，OCR 可能因图片过大失败');
+            return $sourcePath;
+        }
+
+        $info = getimagesize($sourcePath);
+        $mime = $info['mime'] ?? 'image/jpeg';
+
+        $src = match ($mime) {
+            'image/png'  => imagecreatefrompng($sourcePath),
+            'image/gif'  => imagecreatefromgif($sourcePath),
+            'image/webp' => function_exists('imagecreatefromwebp') ? imagecreatefromwebp($sourcePath) : imagecreatefromjpeg($sourcePath),
+            default      => imagecreatefromjpeg($sourcePath),
+        };
+
+        if (!$src) {
+            return $sourcePath;
+        }
+
+        [$origW, $origH] = [$info[0], $info[1]];
+
+        // 计算缩放比例（确保最长边不超过 4096px）
+        $scale = min(1.0, $maxPixels / max($origW, $origH));
+        $newW  = (int) round($origW * $scale);
+        $newH  = (int) round($origH * $scale);
+
+        $dst = imagecreatetruecolor($newW, $newH);
+
+        // PNG 透明背景处理
+        if ($mime === 'image/png') {
+            imagealphablending($dst, false);
+            imagesavealpha($dst, true);
+            imagefilledrectangle($dst, 0, 0, $newW, $newH,
+                imagecolorallocatealpha($dst, 255, 255, 255, 127));
+        }
+
+        imagecopyresampled($dst, $src, 0, 0, 0, 0, $newW, $newH, $origW, $origH);
+        imagedestroy($src);
+
+        // 逐步降低 JPEG quality 直到文件 ≤ 3.8MB
+        $tmpPath = tempnam(sys_get_temp_dir(), 'ocr_') . '.jpg';
+        $quality = 85;
+
+        do {
+            imagejpeg($dst, $tmpPath, $quality);
+            $quality -= 5;
+        } while ($quality >= 40 && filesize($tmpPath) > $maxBytes);
+
+        imagedestroy($dst);
+
+        return $tmpPath;
     }
 
     /**
