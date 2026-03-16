@@ -7,26 +7,27 @@ use Illuminate\Foundation\Console\Kernel as ConsoleKernel;
 
 class Kernel extends ConsoleKernel
 {
-    /**
-     * Define the application's command schedule.
-     *
-     * @param  \Illuminate\Console\Scheduling\Schedule  $schedule
-     * @return void
-     */
+    protected $commands = [
+        Commands\CreateAdmin::class,
+    ];
+
     protected function schedule(Schedule $schedule)
     {
-        // $schedule->command('inspire')->hourly();
+        // 定时刷新微信 access_token（可选，缓存会自动处理）
+        // $schedule->command('wechat:refresh-token')->hourly();
     }
 
-    /**
-     * Register the commands for the application.
-     *
-     * @return void
-     */
+    protected function bootstrappers()
+    {
+        return array_merge(
+            [\Illuminate\Foundation\Bootstrap\LoadEnvironmentVariables::class],
+            parent::bootstrappers(),
+        );
+    }
+
     protected function commands()
     {
         $this->load(__DIR__.'/Commands');
-
         require base_path('routes/console.php');
     }
 }
