@@ -21,7 +21,7 @@ Route::post('/auth/login', [AuthController::class, 'login']);
 Route::middleware('api')->group(function () {//auth:
 
     // 碎片 CRUD
-    Route::get('/feedback',        [FeedbackController::class, 'store']);
+    Route::post('/feedback',        [FeedbackController::class, 'store']);
     Route::get('/cards',           [CardController::class, 'index']);   // 列表/按日期筛选
     Route::post('/cards',          [CardController::class, 'store']);   // 新增
     Route::get('/cards/date-set',  [CardController::class, 'dateSet']); // 有碎片的日期集合
